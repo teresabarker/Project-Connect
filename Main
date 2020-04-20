@@ -1,0 +1,128 @@
+// Project Connect
+// Sensor for Open Gym Players
+// Teresa Barker & Alexander Hirsh
+// IST 402-001
+// April 19, 2020
+
+#include <SPI.h>
+#include <WiFiNINA.h>
+#include "arduino_secrets.h"
+ 
+const int BUTTON_PIN_IN = 2;
+const int BUTTON_PIN_OUT = 4;
+ 
+char ssid[] = SECRET_SSID; //  your network SSID (name)
+char pass[] = SECRET_PSW; //  your network PASSWORD ()
+String apiKey = SECRET_APIKEY;
+ 
+int check_in_counter = 0;
+int check_out_counter = 0;
+int players_on_court = 0;
+
+int status = WL_IDLE_STATUS;
+char server_name[] = "maker.ifttt.com";
+ 
+WiFiClient client;
+ 
+ 
+void setup() {
+  //Initialize serial and wait for port to open:
+  Serial.begin(9600);
+ 
+  pinMode(BUTTON_PIN_IN, INPUT_PULLUP);
+  pinMode(BUTTON_PIN_OUT, INPUT_PULLUP);
+ 
+  // attempt to connect to Wifi network:
+  while (status != WL_CONNECTED) {
+    Serial.print("Attempting to connect to SSID: ");
+ 
+    //use the line below if your network is protected by wpa password
+    status = WiFi.begin(ssid, pass);
+ 
+    // wait 5 seconds for connection:
+    delay(5000);
+  }
+  Serial.println("Connected to T&A Sports Complex Servers.");
+  Serial.println("Waiting for Players to Check In...");
+  Serial.println();
+}
+ 
+void loop() {
+  
+  // Check In Button
+  if(digitalRead(BUTTON_PIN_IN)==LOW) {
+    check_in_counter++;
+    Serial.println("Player Card Scanned Successfully!");
+    Serial.println("Name: Alex Hirsh");
+    Serial.println("RFID #: ABC00987564");
+    Serial.println("The Player has checked into Court 1 for Open Gym.");
+    Serial.println("Thank you for choosing T&A Sports!");
+    Serial.println();
+
+    String additional_info = "?value1=";
+    additional_info += check_in_counter;
+    
+    // Calculate Players on Court 1
+    players_on_court = check_in_counter - check_out_counter;
+
+    Serial.print("There are ");
+    Serial.print(players_on_court);
+    Serial.println(" player(s) on Court 1.");
+    Serial.println();
+  
+    additional_info = "?value3=";
+    additional_info += players_on_court;
+  
+    sendIFTTT("button_pressed", additional_info);
+  }
+
+  // Check Out Button
+  if(digitalRead(BUTTON_PIN_OUT)==LOW && check_in_counter != 0) {
+
+    check_out_counter++;
+    Serial.println("Player Card Scanned Successfully!");
+    Serial.println("Name: Alex Hirsh");
+    Serial.println("RFID #: ABC00987564");
+    Serial.println("The Player has checked out of Court 1 for Open Gym.");
+    Serial.println("Thank you for choosing T&A Sports, come back soon!");
+    Serial.println();
+
+    String additional_info = "?value2=";
+    additional_info += check_out_counter;
+
+    // Calculate Players on Court 1
+    players_on_court = check_in_counter - check_out_counter;
+
+    Serial.print("There are ");
+    Serial.print(players_on_court);
+    Serial.println(" player(s) on Court 1.");
+    Serial.println();
+  
+    additional_info = "?value3=";
+    additional_info += players_on_court;
+  
+    sendIFTTT("button_pressed", additional_info);
+  }
+}
+ 
+ 
+void sendIFTTT(String event_name, String parameters) {
+ 
+  Serial.println("Waiting for next Play Card Scan...");
+  Serial.println();
+  // if you get a connection, report back via serial:
+  if (client.connect(server_name, 80)) {
+    // Make a HTTP request:
+    client.print(String("GET ") + "/trigger/" + event_name + "/with/key/" + apiKey + parameters);
+    client.println(" HTTP/1.1");
+    client.println("Host: maker.ifttt.com");
+    client.println("Connection: close");
+    client.println();
+ 
+    delay(500);
+    client.flush();
+    client.stop();
+  } else {
+    Serial.println("unable to connect");
+  }
+}
